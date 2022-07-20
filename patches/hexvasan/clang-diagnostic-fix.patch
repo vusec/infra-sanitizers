@@ -1,0 +1,12 @@
+--- include/clang/Basic/DiagnosticDriverKinds.td	2022-03-09 17:13:50.220049413 +0100
++++ DiagnosticDriverKinds.td	2022-03-09 17:13:40.191768621 +0100
+@@ -256,5 +256,9 @@
+   "environment variable SCE_ORBIS_SDK_DIR is set, but points to invalid or nonexistent directory '%0'">,
+   InGroup<InvalidOrNonExistentDirectory>;
+ 
++def warn_drv_lto_libpath : Warning<"libLTO.dylib relative to clang installed dir not found; using 'ld' default search path instead">,
++  InGroup<LibLTO>;
++
+ def err_drv_unsupported_linker : Error<"unsupported value '%0' for -linker option">;
+ }
++

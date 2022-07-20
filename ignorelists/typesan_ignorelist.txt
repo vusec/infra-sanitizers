@@ -1,0 +1,6 @@
+#libstdc++ has some undefined behavior issues in some of the headers, in particular, stl_tree.h.
+src:*bits/stl_tree.h
+
+# for 447.dealII
+fun:_ZNKSt[0-9]*
+fun:_ZNSt[0-9]*

@@ -1,65 +1,101 @@
 import os
-from os.path import dirname, abspath
 import infra
 from infra.packages import LLVM, LLVMPasses, LibShrink
-from infra import Package
-from infra.packages.gnu import Bash, BinUtils
+from infra.packages.gnu import BinUtils
+from util import git_fetch
 
 
 def strbool(b):
     return 'true' if b else 'false'
 
 
-class LibDeltaTags(Package):
-    def __init__(self, llvm_passes, addrspace_bits, overflow_bit,
-                 runtime_stats=False, debug=False):
-        self.llvm_passes = llvm_passes
-        self.addrspace_bits = addrspace_bits
-        self.overflow_bit = overflow_bit
-        self.runtime_stats = runtime_stats
-        self.debug = debug
+class DeltaPointersPasses(LLVMPasses):
+    def __init__(self, llvm: LLVM,
+                 relative_srcdir: str,
+                 build_suffix: str,
+                 use_builtins: bool,
+                 debug=False,
+                 gold_passes: bool = True):
+        self.relative_srcdir = relative_srcdir
+        super().__init__(llvm, '', build_suffix, use_builtins, debug, gold_passes)
 
-    def dependencies(self):
-        yield self.llvm_passes.llvm
-        yield Bash('4.3')
-        yield LibShrink(self.addrspace_bits)
-
-    def ident(self):
-        return 'libdeltatags-%d%s' % (self.addrspace_bits,
-                                      '-overflow-bit' if self.overflow_bit else '')
+    def is_fetched(self, ctx):
+        return False
 
     def fetch(self, ctx):
-        os.symlink(os.path.join(ctx.paths.root, 'runtime/deltatags'), 'src')
+        self.custom_srcdir = self.path(ctx, '..', self.relative_srcdir)
+
+
+class DeltaPointersSource(infra.Package):
+
+    addrspace_bits = 32
+    overflow_bit = True
+    runtime_stats = False
+    llvm_patches = ['gold-plugins', 'statsfilter']
+    llvm = LLVM('3.8.0', compiler_rt=False, patches=llvm_patches)
+    llvm.binutils = BinUtils('2.30')
+
+    def __init__(self, commit='master', debug=False) -> None:
+        self.commit = commit
+        self.debug = debug
+        self.llvm_passes = DeltaPointersPasses(
+            llvm=self.llvm,
+            relative_srcdir=f'{self.ident()}/src/llvm-passes',
+            build_suffix='deltatags',
+            use_builtins=True)
+
+    def ident(self):
+        return 'deltapointers-' + self.commit
+
+    def dependencies(self):
+        yield self.llvm
+        yield self.llvm_passes
+        yield LibShrink(self.addrspace_bits)
+
+    def is_fetched(self, ctx):
+        return os.path.exists('src')
+
+    def fetch(self, ctx):
+        git_fetch(ctx, 'https://github.com/vusec/deltapointers.git', self.commit)
+
+        os.chdir('src')
+        infra.util.apply_patch(ctx, os.path.join(
+            ctx.paths.root, 'patches/deltatags/llvm-passes.patch'), 1)
+
+    def is_built(self, ctx):
+        return os.path.exists('obj/libdeltatags.a')
 
     def build(self, ctx):
         os.makedirs('obj', exist_ok=True)
         self.run_make(ctx, '-j%d' % ctx.jobs)
 
-    def install(self, ctx):
-        pass
-
     def run_make(self, ctx, *args):
-        os.chdir(self.path(ctx, 'src'))
+        os.chdir(self.path(ctx, 'src/runtime'))
         env = {
             'OBJDIR': self.path(ctx, 'obj'),
-            'LLVM_VERSION': self.llvm_passes.llvm.version,
+            'LLVM_VERSION': self.llvm.version,
             'ADDRSPACE_BITS': str(self.addrspace_bits),
             'OVERFLOW_BIT': strbool(self.overflow_bit),
             'RUNTIME_STATS': strbool(self.runtime_stats),
             'DEBUG': strbool(self.debug)
         }
-        return infra.util.run(ctx, ['make', *args], env=env)
+        setup_path = os.path.join(ctx.paths.root, 'setup.py')
+        return infra.util.run(ctx, [
+            'make',
+            f'PKG_CONFIG=python3 {setup_path} pkg-config',
+            *args],
+            env=env)
 
-    def is_fetched(self, ctx):
-        return os.path.exists('src')
-
-    def is_built(self, ctx):
-        return os.path.exists('obj/libdeltatags.a')
+    def install(self, ctx):
+        pass
 
     def is_installed(self, ctx):
         return self.is_built(ctx)
 
     def configure(self, ctx):
+        self.llvm.configure(ctx)
+        self.llvm_passes.configure(ctx)
+
         # undef symbols to make sure the pass can find them
         exposed_functions = [
             'strsize_nullsafe', 'strtok', 'strtok_ubound', 'rts_gep',
@@ -74,7 +110,7 @@ class LibDeltaTags(Package):
         # link static library
         ctx.ldflags += ['-L' + self.path(ctx, 'obj'), '-Wl,-whole-archive',
                         '-l:libdeltatags.a', '-Wl,-no-whole-archive']
-        cflags = ['-DDELTAPOINTERS', '-I' + self.path(ctx, 'src')]
+        cflags = ['-DDELTAPOINTERS', '-I' + self.path(ctx, 'src/runtime')]
         cflags += self.llvm_passes.runtime_cflags(ctx)
         ctx.cflags += cflags
         ctx.cxxflags += cflags
@@ -86,42 +122,22 @@ class LibDeltaTags(Package):
 
 class DeltaTags(infra.Instance):
     addrspace_bits = 32
-    llvm_version = '3.8.0'
-    llvm_patches = ['gold-plugins', 'statsfilter']
-    debug = False  # toggle for debug symbols
 
-    doxygen_flags = [
-        # '-DLLVM_ENABLE_DOXYGEN=On',
-        # '-DLLVM_DOXYGEN_SVG=On',
-        #'-DLLVM_INSTALL_DOXYGEN_HTML_DIR=%s/build/doxygen' % rootdir
-    ]
-    config_path = dirname(dirname(abspath(__file__)))
-    llvm = LLVM(version=llvm_version, compiler_rt=False,
-                patches=llvm_patches, build_flags=doxygen_flags)
-    llvm.binutils = BinUtils('2.30')
-    llvm_passes = LLVMPasses(llvm, os.path.join(config_path, 'llvm-passes', 'deltatags'),
-                             'deltatags', use_builtins=True)
-    libshrink = LibShrink(addrspace_bits, debug=debug)
-    libdeltatags = LibDeltaTags(llvm_passes, addrspace_bits, overflow_bit=True,
-                                runtime_stats=False, debug=debug)
-
-    def __init__(self, name, overflow_check, optimizer):
+    def __init__(self, name, overflow_check, optimizer, debug=False):
         self.name = name
         self.overflow_check = overflow_check
         self.optimizer = optimizer
+        self.debug = debug
+        self.libshrink = LibShrink(self.addrspace_bits, debug=debug)
+        self.source = DeltaPointersSource(debug=debug)
 
     def dependencies(self):
-        yield self.llvm
-        yield self.llvm_passes
+        yield self.source
         yield self.libshrink
-        yield self.libdeltatags
 
     def configure(self, ctx):
-        # helper libraries
-        self.llvm.configure(ctx)
-        self.llvm_passes.configure(ctx)
-        self.libshrink.configure(ctx, static=True)
-        self.libdeltatags.configure(ctx)
+        self.source.configure(ctx)
+        self.libshrink.configure(ctx)
 
         if self.debug:
             ctx.cflags += ['-O0', '-ggdb']
@@ -182,7 +198,7 @@ class DeltaTags(infra.Instance):
         assert 'target_run_wrapper' not in ctx
         ctx.target_run_wrapper = self.libshrink.run_wrapper(ctx)
 
-    @classmethod
+    @ classmethod
     def make_instances(cls):
         # cls(name, overflow_check, optimizer)
         yield cls('deltatags-noopt', 'none', None)

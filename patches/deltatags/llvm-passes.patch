@@ -1,0 +1,10 @@
+--- a/llvm-passes/Makefile	2022-08-02 12:43:00.102730000 +0200
++++ b/llvm-passes/Makefile	2022-08-04 12:50:56.326094868 +0200
+@@ -1,4 +1,4 @@
+ BUILD_SUFFIX = deltatags
+ LLVM_VERSION = 3.8.0
+-SETUP_SCRIPT = ../setup.py
+-include ../infra/infra//packages/llvm_passes/Makefile
++SETUP_SCRIPT = ../../../../../setup.py
++include ../../../../../infra/infra/packages/llvm_passes/Makefile
+

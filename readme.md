@@ -44,11 +44,10 @@ $ eval "$(register-python-argcomplete --complete-arguments -o nospace -o default
 
 # Usage
 
-To use this repository standalone, first you need to clone the instrumentation
-infrastructure:
+To use this repository standalone, first make sure the infrastructure is up-to-date:
 
 ```
-$ git submodule add -b master git@github.com:vusec/instrumentation-infra.git infra
+$ git submodule update --init
 ```
 
 The infrastructure supports multiple benchmarking suites, like SPEC

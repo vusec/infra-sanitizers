@@ -62,6 +62,9 @@ class DeltaPointersSource(infra.Package):
         infra.util.apply_patch(ctx, os.path.join(
             ctx.paths.root, 'patches/deltatags/llvm-passes.patch'), 1)
 
+        infra.util.apply_patch(ctx, os.path.join(
+            ctx.paths.root, 'patches/deltatags/runtime.patch'), 1)     
+
     def is_built(self, ctx):
         return os.path.exists('obj/libdeltatags.a')
 

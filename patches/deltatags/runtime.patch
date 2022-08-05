@@ -1,0 +1,11 @@
+--- a/runtime/Makefile	2022-08-05 12:06:55.000000000 +0200
++++ b/runtime/Makefile	2022-08-05 12:07:18.000000000 +0200
+@@ -10,7 +10,7 @@
+ PKG_CONFIG       := python3 ../setup.py pkg-config
+ LLVM_PREFIX      := `$(PKG_CONFIG) llvm-$(LLVM_VERSION) --prefix`
+ PATHCLANGINCLUDE := $(LLVM_PREFIX)/lib/clang/$(LLVM_VERSION)/include
+-BUILTIN_CFLAGS   := `$(PKG_CONFIG) llvm-passes-builtin-$(LLVM_VERSION) --runtime-cflags`
++BUILTIN_CFLAGS   := `$(PKG_CONFIG) llvm-passes-builtin-$(LLVM_VERSION)-gold --runtime-cflags`
+
+ CC     := $(LLVM_PREFIX)/bin/clang
+ CFLAGS := -flto -fpic -Wall -Wextra -march=native -I$(PATHCLANGINCLUDE) \

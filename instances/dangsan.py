@@ -13,8 +13,8 @@ class DangSanSource(infra.Package):
 
     def __init__(self, commit='master'):
         self.commit = commit
-        self.binutils = BinUtils('2.30')
-        self.libunwind = LibUnwind('1.2-rc1')
+        self.binutils = BinUtils('2.38')
+        self.libunwind = LibUnwind('1.5-rc1')
 
     def ident(self):
         return 'dangsan-' + self.commit
@@ -22,9 +22,9 @@ class DangSanSource(infra.Package):
     def dependencies(self):
         yield Bash('4.3')
         yield Make('4.3')
-        yield AutoMake('1.15.1', AutoConf('2.68', M4('1.4.18')), LibTool('2.4.6'))
+        yield AutoMake('1.15.1', AutoConf('2.68', M4('1.4.19')), LibTool('2.4.6'))
         yield CMake('3.4.1')
-        yield CoreUtils('8.22')
+        yield CoreUtils('9.0')
         yield self.libunwind
         yield self.binutils
 

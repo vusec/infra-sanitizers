@@ -7,6 +7,7 @@ from infra.packages.gnu import (
 )
 from infra.packages.gperftools import LibUnwind
 from infra.packages.llvm import LLVM
+from infra.util import apply_patch
 from util import add_env_var, git_fetch
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +33,10 @@ class DangSanSource(infra.Package):
                     ('llvm/projects/compiler-rt',
                         os.path.join(BASE_DIR, 'patches/compiler-rt-fix.patch')),
                 ])
+        self.patches = [
+            os.path.join(BASE_DIR, 'patches/dangsan/Add-PERFTOOLS_THROW-where-necessary-as-detected-by-G.patch'),
+            os.path.join(BASE_DIR, 'patches/dangsan/llvm-plugins-disable-Werror.patch'),
+        ]
 
     def ident(self):
         return 'dangsan-' + self.commit
@@ -59,6 +64,11 @@ class DangSanSource(infra.Package):
         return all(os.path.exists(os.path.join('obj', path)) for path in objects_paths)
 
     def build(self, ctx):
+        os.chdir('src')
+        for path in self.patches:
+            apply_patch(ctx, path, 1)
+        os.chdir('..')
+
         metapagetable_obj_dir = self.path(ctx, 'obj', 'metapagetable')
 
         self._build_metapagetable(ctx, metapagetable_obj_dir)

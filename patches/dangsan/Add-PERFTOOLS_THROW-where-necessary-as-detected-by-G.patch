@@ -1,0 +1,62 @@
+From 602b13175671aef0878d8b229343427d3eda0744 Mon Sep 17 00:00:00 2001
+From: Jakob Koschel <jkl820.git@gmail.com>
+Date: Thu, 6 Apr 2023 22:21:41 +0200
+Subject: [PATCH 2/2] Add PERFTOOLS_THROW where necessary (as detected by GCC).
+
+backported from https://github.com/gperftools/gperftools/commit/c4de73c0e69b9a75b6795fdd4598234baed8496d
+---
+ gperftools-metalloc/src/base/basictypes.h            | 7 +++++++
+ gperftools-metalloc/src/libc_override_gcc_and_weak.h | 4 ++--
+ gperftools-metalloc/src/tests/tcmalloc_unittest.cc   | 2 +-
+ 3 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/gperftools-metalloc/src/base/basictypes.h b/gperftools-metalloc/src/base/basictypes.h
+index 997f12c..09a54bc 100644
+--- a/gperftools-metalloc/src/base/basictypes.h
++++ b/gperftools-metalloc/src/base/basictypes.h
+@@ -387,4 +387,11 @@ namespace base {
+ enum LinkerInitialized { LINKER_INITIALIZED };
+ }
+ 
++#if __cpp_noexcept_function_type >= 201510
++// Deprecated in C++17
++# define PERFTOOLS_THROW(...)
++#else
++# define PERFTOOLS_THROW(...) throw(__VA_ARGS__)
++#endif
++
+ #endif  // _BASICTYPES_H_
+diff --git a/gperftools-metalloc/src/libc_override_gcc_and_weak.h b/gperftools-metalloc/src/libc_override_gcc_and_weak.h
+index 818e43d..c5336e1 100644
+--- a/gperftools-metalloc/src/libc_override_gcc_and_weak.h
++++ b/gperftools-metalloc/src/libc_override_gcc_and_weak.h
+@@ -54,11 +54,11 @@
+ 
+ #define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn)))
+ 
+-void* operator new(size_t size) throw (std::bad_alloc)
++void* operator new(size_t size) PERFTOOLS_THROW(std::bad_alloc)
+     ALIAS(tc_new);
+ void operator delete(void* p) __THROW
+     ALIAS(tc_delete);
+-void* operator new[](size_t size) throw (std::bad_alloc)
++void* operator new[](size_t size) PERFTOOLS_THROW(std::bad_alloc)
+     ALIAS(tc_newarray);
+ void operator delete[](void* p) __THROW
+     ALIAS(tc_deletearray);
+diff --git a/gperftools-metalloc/src/tests/tcmalloc_unittest.cc b/gperftools-metalloc/src/tests/tcmalloc_unittest.cc
+index 8d2911f..2fbc70b 100644
+--- a/gperftools-metalloc/src/tests/tcmalloc_unittest.cc
++++ b/gperftools-metalloc/src/tests/tcmalloc_unittest.cc
+@@ -626,7 +626,7 @@ static void TestRealloc() {
+ #endif
+ }
+ 
+-static void TestNewHandler() throw (std::bad_alloc) {
++static void TestNewHandler() PERFTOOLS_THROW(std::bad_alloc) {
+   ++news_handled;
+   throw std::bad_alloc();
+ }
+-- 
+2.34.1
+

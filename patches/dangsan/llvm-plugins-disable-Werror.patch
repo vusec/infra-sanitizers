@@ -1,0 +1,24 @@
+From c4e097e17b87e763329075c4d2f290eda758970e Mon Sep 17 00:00:00 2001
+From: Jakob Koschel <jkl820.git@gmail.com>
+Date: Thu, 6 Apr 2023 22:21:17 +0200
+Subject: [PATCH 1/2] llvm-plugins: disable -Werror
+
+---
+ llvm-plugins/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/llvm-plugins/Makefile b/llvm-plugins/Makefile
+index b24d99c..a9a004d 100644
+--- a/llvm-plugins/Makefile
++++ b/llvm-plugins/Makefile
+@@ -1,6 +1,6 @@
+ CC=g++
+ INCLUDES=-I. -I../staticlib -I../metapagetable
+-CFLAGS=-c -Werror -Wall -std=c++0x -g `llvm-config --cxxflags` -O0
++CFLAGS=-c -Wall -std=c++0x -g `llvm-config --cxxflags` -O0
+ LDFLAGS=-g -shared
+ TARGETDIR=.
+ OBJDIR=$(TARGETDIR)/obj
+-- 
+2.34.1
+

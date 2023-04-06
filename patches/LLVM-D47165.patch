@@ -1,0 +1,33 @@
+Index: /lib/sanitizer_common/sanitizer_common_syscalls.inc
+===================================================================
+--- /lib/sanitizer_common/sanitizer_common_syscalls.inc
++++ /lib/sanitizer_common/sanitizer_common_syscalls.inc
+@@ -923,7 +923,7 @@
+   }
+ }
+
+-#if !SANITIZER_ANDROID
++#if !SANITIZER_LINUX && !SANITIZER_ANDROID
+ PRE_SYSCALL(ustat)(long dev, void *ubuf) {}
+
+ POST_SYSCALL(ustat)(long res, long dev, void *ubuf) {
+Index: /compiler-rt/lib/sanitizer_common/sanitizer_platform_limits_posix.cc
+===================================================================
+--- /lib/sanitizer_common/sanitizer_platform_limits_posix.cc
++++ /lib/sanitizer_common/sanitizer_platform_limits_posix.cc
+@@ -159,7 +159,6 @@
+ # include <sys/procfs.h>
+ #endif
+ #include <sys/user.h>
+-#include <sys/ustat.h>
+ #include <linux/cyclades.h>
+ #include <linux/if_eql.h>
+ #include <linux/if_plip.h>
+@@ -253,7 +252,6 @@
+ #endif // SANITIZER_LINUX || SANITIZER_FREEBSD
+
+ #if SANITIZER_LINUX && !SANITIZER_ANDROID
+-  unsigned struct_ustat_sz = sizeof(struct ustat);
+   unsigned struct_rlimit64_sz = sizeof(struct rlimit64);
+   unsigned struct_statvfs64_sz = sizeof(struct statvfs64);
+ #endif // SANITIZER_LINUX && !SANITIZER_ANDROID

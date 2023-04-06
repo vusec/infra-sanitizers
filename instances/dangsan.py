@@ -6,8 +6,10 @@ from infra.packages.gnu import (
     M4, AutoConf, AutoMake, Bash, BinUtils, CoreUtils, LibTool, Make
 )
 from infra.packages.gperftools import LibUnwind
+from infra.packages.llvm import LLVM
 from util import add_env_var, git_fetch
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class DangSanSource(infra.Package):
 
@@ -15,6 +17,21 @@ class DangSanSource(infra.Package):
         self.commit = commit
         self.binutils = BinUtils('2.38')
         self.libunwind = LibUnwind('1.5-rc1')
+        self.llvm =  LLVM('3.8.0', compiler_rt = True,
+                commit='43dff0c03324',
+                patches=[
+                    ('llvm/projects/compiler-rt',
+                        os.path.join(BASE_DIR, 'patches/LLVM-D47165.patch')),
+                    ('llvm/projects/compiler-rt',
+                        os.path.join(BASE_DIR, 'patches/LLVM-D70662.diff')),
+                    ('llvm', os.path.join(BASE_DIR, 'patches/LLVM-uniqueptr-fix.patch')),
+                    ('llvm', os.path.join(BASE_DIR, 'patches/dangsan/LLVM-gold-plugins-3.8.diff')),
+                    ('llvm', os.path.join(BASE_DIR, 'patches/dangsan/LLVM-safestack-3.8.diff')),
+                    ('llvm/projects/compiler-rt',
+                        os.path.join(BASE_DIR, 'patches/dangsan/COMPILERRT-safestack-3.8.diff')),
+                    ('llvm/projects/compiler-rt',
+                        os.path.join(BASE_DIR, 'patches/compiler-rt-fix.patch')),
+                ])
 
     def ident(self):
         return 'dangsan-' + self.commit
@@ -27,6 +44,7 @@ class DangSanSource(infra.Package):
         yield CoreUtils('9.0')
         yield self.libunwind
         yield self.binutils
+        yield self.llvm
 
     def is_fetched(self, ctx):
         return os.path.exists('src')
@@ -34,32 +52,8 @@ class DangSanSource(infra.Package):
     def fetch(self, ctx):
         git_fetch(ctx, 'https://github.com/vusec/dangsan.git', self.commit)
 
-        os.chdir('src')
-        git_fetch(ctx, 'git@github.com:llvm/llvm-project.git',
-                  '43dff0c03324', 'llvm-project')
-
-        # Apply LLVM patches
-        os.chdir('llvm-project/llvm')
-        infra.util.apply_patch(ctx, self.path(
-            ctx, 'src', 'patches', 'LLVM-gold-plugins-3.8.diff'), 0)
-
-        infra.util.apply_patch(ctx, self.path(
-            ctx, 'src', 'patches', 'LLVM-safestack-3.8.diff'), 0)
-
-        os.chdir(self.path(ctx, 'src/llvm-project/compiler-rt'))
-        infra.util.apply_patch(ctx, self.path(
-            ctx, 'src', 'patches', 'COMPILERRT-safestack-3.8.diff'), 0)
-
-        os.chdir(self.path(ctx, 'src/llvm-project'))
-        infra.util.apply_patch(ctx, os.path.join(
-            ctx.paths.root, 'patches/compiler-rt-fix.patch'), 0)
-
-        shutil.copytree('compiler-rt', 'llvm/projects/compiler-rt')
-        shutil.copytree('clang', 'llvm/tools/clang')
-
-
     def is_built(self, ctx):
-        objects_paths = ['llvm/bin/clang', 'gperftools/.libs',
+        objects_paths = ['gperftools/.libs',
                          'llvm-plugins/libplugins.so', 'metapagetable/.libs',
                          'staticlib/libmetadata.a']
         return all(os.path.exists(os.path.join('obj', path)) for path in objects_paths)
@@ -67,7 +61,6 @@ class DangSanSource(infra.Package):
     def build(self, ctx):
         metapagetable_obj_dir = self.path(ctx, 'obj', 'metapagetable')
 
-        self._build_llvm(ctx)
         self._build_metapagetable(ctx, metapagetable_obj_dir)
         self._build_gperftools(ctx, metapagetable_obj_dir)
 
@@ -77,25 +70,6 @@ class DangSanSource(infra.Package):
 
         self._build_staticlib(ctx, metapagetable_obj_dir)
         self._build_llvm_plugins(ctx)
-
-    def _build_llvm(self, ctx):
-        os.chdir(self.path(ctx))
-        os.makedirs('obj/llvm', exist_ok=True)
-        os.chdir('obj/llvm')
-
-        infra.util.run(ctx, [
-            'cmake',
-            '-DCMAKE_C_COMPILER=gcc',
-            '-DCMAKE_CXX_COMPILER=g++',
-            '-DCMAKE_BUILD_TYPE=Release',
-            '-DLLVM_ENABLE_ASSERTIONS=ON',
-            '-DLLVM_BINUTILS_INCDIR=' +
-            self.binutils.path(ctx, 'install/include'),
-            '-DCMAKE_INSTALL_PREFIX=' + self.path(ctx, 'install'),
-            '../../src/llvm-project/llvm'
-        ])
-        infra.util.run(ctx, 'make -j %d' % ctx.jobs)
-        infra.util.run(ctx, 'make install')
 
     def _build_metapagetable(self, ctx, metapagetable_obj_dir):
         os.chdir(self.path(ctx))
@@ -149,7 +123,7 @@ class DangSanSource(infra.Package):
         os.chdir(self.path(ctx, 'src/staticlib'))
         infra.util.run(ctx, [
             'make',
-            'CC=' + self.path(ctx, 'install/bin/clang'),
+            'CC=' + self.llvm.path(ctx, 'install/bin/clang'),
             'OBJDIR=' + staticlib_obj_dir,
             'METAPAGETABLEDIR=' + metapagetable_obj_dir,
             '-j' + str(ctx.jobs)
@@ -159,7 +133,7 @@ class DangSanSource(infra.Package):
         os.chdir(self.path(ctx, 'src/llvm-plugins'))
         infra.util.run(ctx, [
             'make',
-            'GOLDINSTDIR=' + self.path(ctx, 'install'),
+            'GOLDINSTDIR=' + self.llvm.path(ctx, 'install'),
             'TARGETDIR=' + self.path(ctx, 'obj', 'llvm-plugins'),
             '-j' + str(ctx.jobs)
         ])
